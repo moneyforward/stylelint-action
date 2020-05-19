@@ -1,14 +1,78 @@
-import Analyzer from './analyzer';
+import stream from 'stream';
+import util from 'util';
+import Command from '@moneyforward/command';
+import StaticCodeAnalyzer, { AnalyzerConstructorParameter } from '@moneyforward/sca-action-core';
+import { stringify, transform } from '@moneyforward/stream-util';
 
-console.log('::echo::%s', process.env['RUNNER_DEBUG'] === '1' ? 'on' : 'off');
-(async (): Promise<void> => {
-  const files = process.env.INPUT_FILES || '**/*.{css,less,sass,scss,sss}';
-  const options = JSON.parse(process.env.INPUT_OPTIONS || '[]');
-  const workingDirectory = process.env.INPUT_WORKING_DIRECTORY;
-  workingDirectory && process.chdir(workingDirectory);
-  const analyzer = new Analyzer(options);
-  process.exitCode = await analyzer.analyze(files);
-})().catch(reason => {
-  console.log(`::error::${String(reason)}`);
-  process.exit(1);
-});
+const debug = util.debuglog('@moneyforward/code-review-action-stylelint-plugin');
+
+interface Warning {
+  line: number;
+  column: number;
+  rule: string;
+  severity: 'warning' | 'error';
+  text: string;
+}
+
+export interface Result {
+  source: string;
+  errored: boolean;
+  warnings: Warning[];
+  deprecations: {
+    text: string;
+    reference: string;
+  }[];
+  invalidOptionWarnings: {
+    text: string;
+  }[];
+  ignored: boolean;
+}
+
+export type Results = Result[];
+
+export default class Analyzer extends StaticCodeAnalyzer {
+  constructor(...args: AnalyzerConstructorParameter[]) {
+    super('npx', ['stylelint'].concat(args.map(String)).concat(['-f', 'json', '--no-color', '--allow-empty-input']), undefined, 2, undefined, 'stylelint');
+  }
+
+  protected async prepare(): Promise<void> {
+    console.log('::group::Installing packages...');
+    try {
+      await Command.execute('npm', ['install']);
+      await Command.execute('npx', ['stylelint', '--print-config', '.'], undefined, undefined, async child => {
+        child.stdout && child.stdout.unpipe(process.stdout);
+        const promise = child.stdout ? stringify(child.stdout) : Promise.resolve('');
+        child.once('exit', async exitStatus => {
+          if (exitStatus === null || exitStatus > 0) {
+            const message = await promise;
+            console.error('%s', message);
+          }
+        });
+      });
+    } finally {
+      console.log('::endgroup::');
+    }
+  }
+
+  protected createTransformStreams(): stream.Transform[] {
+    return [
+      new transform.JSON(),
+      new stream.Transform({
+        objectMode: true,
+        transform: function (results: Results, encoding, done): void {
+          debug(`Detected %d problem(s).`, results.length);
+          for (const result of results) for (const warning of result.warnings) this.push({
+            file: result.source,
+            line: warning.line,
+            column: warning.column,
+            severity: warning.severity,
+            message: warning.text,
+            code: warning.rule
+          });
+          this.push(null);
+          done();
+        }
+      })
+    ];
+  }
+}
