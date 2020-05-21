@@ -32,7 +32,7 @@ export type Results = Result[];
 
 export default class Analyzer extends StaticCodeAnalyzer {
   constructor(...args: AnalyzerConstructorParameter[]) {
-    super('npx', ['stylelint'].concat(args.map(String)).concat(['-f', 'json', '--no-color', '--allow-empty-input']), undefined, 2, undefined, 'stylelint');
+    super('npx', ['stylelint'].concat(args.map(String)).concat(['-f', 'json', '--no-color', '--allow-empty-input']), undefined, exitStatus => exitStatus === 0 || exitStatus === 2, undefined, 'stylelint');
   }
 
   protected async prepare(): Promise<void> {
