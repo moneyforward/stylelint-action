@@ -1,8 +1,11 @@
 import stream from 'stream';
 import util from 'util';
 import Command from '@moneyforward/command';
-import StaticCodeAnalyzer, { AnalyzerConstructorParameter } from '@moneyforward/sca-action-core';
+import { analyzer } from '@moneyforward/code-review-action';
+import StaticCodeAnalyzer from '@moneyforward/sca-action-core';
 import { stringify, transform } from '@moneyforward/stream-util';
+
+type AnalyzerConstructorParameter = analyzer.AnalyzerConstructorParameter;
 
 const debug = util.debuglog('@moneyforward/code-review-action-stylelint-plugin');
 
@@ -30,7 +33,7 @@ export interface Result {
 
 export type Results = Result[];
 
-export default class Analyzer extends StaticCodeAnalyzer {
+export default abstract class Analyzer extends StaticCodeAnalyzer {
   constructor(...args: AnalyzerConstructorParameter[]) {
     super('npx', ['stylelint'].concat(args.map(String)).concat(['-f', 'json', '--no-color', '--allow-empty-input']), undefined, exitStatus => exitStatus === 0 || exitStatus === 2, undefined, 'stylelint');
   }
