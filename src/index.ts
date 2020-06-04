@@ -1,3 +1,4 @@
+import fs from 'fs';
 import stream from 'stream';
 import util from 'util';
 import Command from '@moneyforward/command';
@@ -41,7 +42,8 @@ export default abstract class Analyzer extends StaticCodeAnalyzer {
   protected async prepare(): Promise<void> {
     console.log('::group::Installing packages...');
     try {
-      await Command.execute('npm', ['install']);
+      const [command, args] = fs.existsSync('yarn.lock') ? ['yarn', ['--frozen-lockfile']] : ['npm', ['ci']];
+      await Command.execute(command, args);
     } finally {
       console.log('::endgroup::');
     }
