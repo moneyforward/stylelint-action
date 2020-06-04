@@ -3,7 +3,7 @@ import util from 'util';
 import Command from '@moneyforward/command';
 import { analyzer } from '@moneyforward/code-review-action';
 import StaticCodeAnalyzer from '@moneyforward/sca-action-core';
-import { stringify, transform } from '@moneyforward/stream-util';
+import { transform } from '@moneyforward/stream-util';
 
 type AnalyzerConstructorParameter = analyzer.AnalyzerConstructorParameter;
 
@@ -42,11 +42,6 @@ export default abstract class Analyzer extends StaticCodeAnalyzer {
     console.log('::group::Installing packages...');
     try {
       await Command.execute('npm', ['install']);
-      const [exitStatus, message] = await Command.execute('npx', ['stylelint', '--print-config', '.'], { stdio: ['pipe', 'pipe', 1] }, 256, async function * (child) {
-        if (child.stdout === null) return;
-        yield await Promise.all([new Promise<number>(resolve => child.once('close', resolve)), stringify(child.stdout)]);
-      });
-      if (exitStatus) console.error(message);
     } finally {
       console.log('::endgroup::');
     }
