@@ -42,16 +42,11 @@ export default abstract class Analyzer extends StaticCodeAnalyzer {
     console.log('::group::Installing packages...');
     try {
       await Command.execute('npm', ['install']);
-      await Command.execute('npx', ['stylelint', '--print-config', '.'], undefined, undefined, async child => {
-        child.stdout && child.stdout.unpipe(process.stdout);
-        const promise = child.stdout ? stringify(child.stdout) : Promise.resolve('');
-        child.once('exit', async exitStatus => {
-          if (exitStatus === null || exitStatus > 0) {
-            const message = await promise;
-            console.error('%s', message);
-          }
-        });
+      const [exitStatus, message] = await Command.execute('npx', ['stylelint', '--print-config', '.'], { stdio: ['pipe', 'pipe', 1] }, 256, async function * (child) {
+        if (child.stdout === null) return;
+        yield await Promise.all([new Promise<number>(resolve => child.once('close', resolve)), stringify(child.stdout)]);
       });
+      if (exitStatus) console.error(message);
     } finally {
       console.log('::endgroup::');
     }
